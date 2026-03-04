@@ -1,5 +1,6 @@
 # 🔍 AlphaScope AI
 
+Here's my app: https://alphascope.streamlit.app/
 **AI-powered stock analysis engine combining fundamental metrics, technical indicators, and NLP sentiment analysis to generate data-driven Buy/Hold/Sell recommendations with LLM-powered explanations.**
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
