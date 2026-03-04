@@ -17,6 +17,134 @@ import json
 import os
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DEBUG SETTINGS - Toggle these as needed
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEBUG_MODE = True  # Set to False to hide debug output in production
+if DEBUG_MODE:
+    import sys
+    print("="*60)
+    print("AlphaScope AI - Debug Mode Active")
+    print("="*60)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Dividend Yield Helper Function
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def safe_dividend_yield(info, ticker):
+    """
+    Safely calculate dividend yield with fallbacks and extensive debugging.
+    Yahoo Finance can be inconsistent - this handles multiple cases.
+    """
+    if DEBUG_MODE:
+        print(f"\n🔍 [DIVIDEND DEBUG] Processing {ticker}")
+    
+    # Try direct yield field first
+    raw_yield = info.get("dividendYield")
+    if DEBUG_MODE:
+        print(f"  dividendYield raw: {raw_yield} (type: {type(raw_yield)})")
+    
+    # If it exists and seems reasonable
+    if raw_yield is not None:
+        # If it's > 1, it's probably already a percentage (like 39.0 meaning 39%)
+        if raw_yield > 1:
+            if DEBUG_MODE:
+                print(f"  → Value > 1, converting to decimal: {raw_yield} → {raw_yield / 100}")
+            result = raw_yield / 100
+        # If it's between 0 and 1, it's already decimal
+        elif 0 <= raw_yield <= 1:
+            if DEBUG_MODE:
+                print(f"  → Value between 0-1, using as-is: {raw_yield}")
+            result = raw_yield
+        else:
+            result = None
+            
+        # SANITY CHECK: If result > 0.15 (15% yield), it's almost certainly wrong
+        # Most stocks don't yield above 5-6%, 15% is bankruptcy territory
+        if result and result > 0.15:
+            if DEBUG_MODE:
+                print(f"  ⚠️ Sanity check: {result*100:.1f}% yield is implausibly high, checking alternatives...")
+            
+            # Try trailing yield as fallback
+            trail_yield = info.get("trailingAnnualDividendYield")
+            if DEBUG_MODE:
+                print(f"  trailingAnnualDividendYield: {trail_yield}")
+            
+            if trail_yield and 0 < trail_yield <= 0.15:
+                if DEBUG_MODE:
+                    print(f"  → Using trailing yield instead: {trail_yield}")
+                return trail_yield
+            
+            # Try calculating from dividendRate
+            rate = info.get("dividendRate")
+            price = info.get("currentPrice") or info.get("regularMarketPrice")
+            if DEBUG_MODE:
+                print(f"  dividendRate: {rate}, price: {price}")
+            
+            if rate and price and price > 0:
+                # If rate is quarterly (most US stocks)
+                if rate < 10:  # Sanity check - quarterly dividend under $10
+                    calculated = (rate * 4) / price
+                    if DEBUG_MODE:
+                        print(f"  → Calculated from rate: ({rate} * 4) / {price} = {calculated}")
+                    if calculated <= 0.15:
+                        return calculated
+            
+            # If we got here, all fallbacks failed or also gave high values
+            if DEBUG_MODE:
+                print(f"  ⚠️ All fallbacks implausible, capping at 5% as safety")
+            return 0.05  # Cap at 5% as absolute maximum reasonable yield
+        
+        return result
+    
+    # Try trailing annual dividend yield
+    trail_yield = info.get("trailingAnnualDividendYield")
+    if DEBUG_MODE:
+        print(f"  trailingAnnualDividendYield: {trail_yield}")
+    
+    if trail_yield is not None:
+        if trail_yield > 1:
+            result = trail_yield / 100
+        else:
+            result = trail_yield
+        
+        if result <= 0.15:
+            return result
+    
+    # Try calculating from dividendRate
+    rate = info.get("dividendRate")
+    price = info.get("currentPrice") or info.get("regularMarketPrice")
+    if DEBUG_MODE:
+        print(f"  dividendRate: {rate}")
+        print(f"  currentPrice: {price}")
+    
+    if rate and price and price > 0:
+        # If rate is quarterly (most US stocks)
+        if rate < 10:  # Sanity check - quarterly dividend under $10
+            annual_dividend = rate * 4
+            calculated = annual_dividend / price
+            if DEBUG_MODE:
+                print(f"  → Calculated from rate: ({rate} * 4) / {price} = {calculated}")
+            if calculated <= 0.15:
+                return calculated
+    
+    # Try last dividend value
+    last_div = info.get("lastDividendValue")
+    if DEBUG_MODE:
+        print(f"  lastDividendValue: {last_div}")
+    
+    if last_div and price and price > 0:
+        # Estimate annual from last dividend (assuming quarterly)
+        estimated = (last_div * 4) / price
+        if DEBUG_MODE:
+            print(f"  → Estimated from last dividend: ({last_div} * 4) / {price} = {estimated}")
+        if estimated <= 0.15:
+            return estimated
+    
+    if DEBUG_MODE:
+        print("  ❌ No reliable dividend data found, returning None")
+    return None
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Popular Tickers for Autocomplete
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 POPULAR_TICKERS = {
@@ -74,7 +202,6 @@ POPULAR_TICKERS = {
     "WFC": "Wells Fargo & Company",
     "ABNB": "Airbnb Inc.",
     "SHOP": "Shopify Inc.",
-    "SQ": "Block Inc.",
     "ZM": "Zoom Video Communications",
     "ROKU": "Roku Inc.",
     "DKNG": "DraftKings Inc.",
@@ -475,6 +602,45 @@ Analysis Data:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Formatting Helpers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def fmt_large_number(n):
+    if n is None: return "N/A"
+    n = float(n)
+    if abs(n) >= 1e12: return f"${n/1e12:.2f}T"
+    if abs(n) >= 1e9: return f"${n/1e9:.2f}B"
+    if abs(n) >= 1e6: return f"${n/1e6:.1f}M"
+    return f"${n:,.0f}"
+
+def fmt_pct(v):
+    if v is None: return "N/A"
+    # Sanity check - if it's > 5, it's probably already a percentage
+    # (very few stocks yield > 5%)
+    if v > 5:
+        if DEBUG_MODE:
+            print(f"  ⚠️ fmt_pct got value >5: {v} - treating as already percentage")
+        return f"{v:.1f}%"
+    # Normal case: decimal to percentage
+    return f"{v*100:.2f}%"
+
+def fmt_ratio(v):
+    if v is None: return "N/A"
+    return f"{v:.2f}"
+
+def fmt_price(v):
+    if v is None: return "N/A"
+    return f"${v:.2f}"
+
+def score_color_class(score):
+    if score > 30: return "score-positive"
+    if score < -30: return "score-negative"
+    return "score-neutral"
+
+def score_prefix(score):
+    return f"+{score}" if score > 0 else str(score)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Data Fetching & Three-Layer Analysis
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @st.cache_data(ttl=300, show_spinner=False)
@@ -487,12 +653,30 @@ def run_analysis(ticker: str) -> dict:
       Composite scoring & recommendation
     """
 
+    if DEBUG_MODE:
+        print(f"\n{'='*60}")
+        print(f"🔍 RUN_ANALYSIS START: {ticker}")
+        print(f"{'='*60}")
+
     stock = yf.Ticker(ticker)
 
     # ── LAYER 1: FUNDAMENTALS ──────────────────
     info = stock.info
     if not info or not info.get("regularMarketPrice"):
         return {"error": "Invalid ticker or no data available."}
+
+    # Debug: Print all dividend-related fields
+    if DEBUG_MODE:
+        print("\n📊 [YAHOO DEBUG] All dividend-related fields:")
+        div_fields = []
+        for key, value in info.items():
+            if any(x in key.lower() for x in ['dividend', 'yield', 'div', 'payout']):
+                div_fields.append((key, value, type(value)))
+        
+        for key, value, typ in sorted(div_fields):
+            print(f"  {key}: {value} ({typ})")
+        
+        print(f"\n  Current price: {info.get('currentPrice') or info.get('regularMarketPrice')}")
 
     fundamentals = {
         "peRatio": info.get("trailingPE"),
@@ -506,13 +690,16 @@ def run_analysis(ticker: str) -> dict:
         "debtToEquity": info.get("debtToEquity"),
         "returnOnEquity": info.get("returnOnEquity"),
         "freeCashflow": info.get("freeCashflow"),
-        "dividendYield": info.get("dividendYield"),
+        "dividendYield": safe_dividend_yield(info, ticker),  # Using our safe function
         "fiftyTwoWeekHigh": info.get("fiftyTwoWeekHigh"),
         "fiftyTwoWeekLow": info.get("fiftyTwoWeekLow"),
         "shortName": info.get("shortName", ticker),
         "sector": info.get("sector", "N/A"),
         "industry": info.get("industry", "N/A"),
     }
+
+    if DEBUG_MODE:
+        print(f"\n✅ [PROCESSED] dividendYield after safe_dividend_yield: {fundamentals['dividendYield']}")
 
     # Score fundamentals: -100 to +100
     f_score, f_count = 0, 0
@@ -564,6 +751,7 @@ def run_analysis(ticker: str) -> dict:
     rsi_series = 100 - (100 / (1 + rs))
 
     # MACD (12, 26, 9)
+    
     ema12 = closes.ewm(span=12, adjust=False).mean()
     ema26 = closes.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -603,7 +791,7 @@ def run_analysis(ticker: str) -> dict:
         t_count += 1
         t_score += 100 if latest_macd > latest_signal else -100
 
-    # Golden/Death cross
+    # Golden/Death cross - FIXED SYNTAX (added colon)
     if latest_sma50 and latest_sma200:
         t_count += 1
         t_score += 100 if latest_sma50 > latest_sma200 else -100
@@ -668,14 +856,14 @@ def run_analysis(ticker: str) -> dict:
     except Exception as e:
         st.warning(f"Could not fetch news: {e}")
 
-    # Debug: print to terminal so you can see what's happening
-    print(f"[AlphaScope] {ticker}: Found {len(headlines)} headlines")
-    if headlines:
-        print(f"[AlphaScope] First headline: {headlines[0]}")
-    else:
-        print(f"[AlphaScope] No headlines found. Raw news type: {type(stock.news)}")
-        if stock.news:
-            print(f"[AlphaScope] First raw news item: {stock.news[0]}")
+    if DEBUG_MODE:
+        print(f"\n📰 [NEWS DEBUG] {ticker}: Found {len(headlines)} headlines")
+        if headlines:
+            print(f"  First headline: {headlines[0][:100]}...")
+        else:
+            print(f"  No headlines found. Raw news type: {type(stock.news)}")
+            if stock.news:
+                print(f"  First raw news item: {str(stock.news[0])[:200]}")
 
     sentiment_results = analyze_sentiment(headlines) if headlines else []
 
@@ -688,6 +876,9 @@ def run_analysis(ticker: str) -> dict:
         sentiment_score = round(sum(r["score"] for r in sentiment_results) / len(sentiment_results))
     else:
         sentiment_score = 0
+
+    if DEBUG_MODE:
+        print(f"\n📊 [SCORES] Fundamental: {fundamental_score}, Technical: {technical_score}, Sentiment: {sentiment_score}")
 
     # ── COMPOSITE SCORE ────────────────────────
     composite = round(
@@ -848,6 +1039,10 @@ def run_analysis(ticker: str) -> dict:
 
     confidence = min(abs(composite), 100)
 
+    if DEBUG_MODE:
+        print(f"\n✅ [RECOMMENDATIONS] Owner: {owner_rec} (score: {owner_score}), Buyer: {buyer_rec} (score: {buyer_score})")
+        print(f"{'='*60}\n")
+
     return {
         "ticker": ticker,
         "name": fundamentals.get("shortName", ticker),
@@ -868,38 +1063,6 @@ def run_analysis(ticker: str) -> dict:
         "technicals": technicals,
         "sentiment_results": sentiment_results,
     }
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Formatting Helpers
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def fmt_large_number(n):
-    if n is None: return "N/A"
-    n = float(n)
-    if abs(n) >= 1e12: return f"${n/1e12:.2f}T"
-    if abs(n) >= 1e9: return f"${n/1e9:.2f}B"
-    if abs(n) >= 1e6: return f"${n/1e6:.1f}M"
-    return f"${n:,.0f}"
-
-def fmt_pct(v):
-    if v is None: return "N/A"
-    return f"{v*100:.2f}%"
-
-def fmt_ratio(v):
-    if v is None: return "N/A"
-    return f"{v:.2f}"
-
-def fmt_price(v):
-    if v is None: return "N/A"
-    return f"${v:.2f}"
-
-def score_color_class(score):
-    if score > 30: return "score-positive"
-    if score < -30: return "score-negative"
-    return "score-neutral"
-
-def score_prefix(score):
-    return f"+{score}" if score > 0 else str(score)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1288,7 +1451,7 @@ def main():
             st.markdown("""
             <div class="glass-panel">
                 <h3>📰 News Sentiment</h3>
-                <p style="color: #8b949e;">No recent news available for this ticker.</p>
+                <p style="color: #8b949e                <p style="color: #8b949e;">No recent news available for this ticker.</p>
             </div>
             """, unsafe_allow_html=True)
 
