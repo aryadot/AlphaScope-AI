@@ -58,50 +58,12 @@ Users can ask follow-up questions ("What's the biggest risk?", "Is this overboug
 
 ---
 
-## Quick Start
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/YOUR_USERNAME/alphascope-ai.git
-cd alphascope-ai
-pip install -r requirements.txt
-```
-
-### 2. Set API Key (optional but recommended)
-
-```bash
-export GROQ_API_KEY="gsk_your-key-here"
-```
-
-Without the key, the app still works — fundamentals, technicals, FinBERT sentiment, and charts all run locally. You'll get a basic auto-generated narrative instead of the LLM-powered one, and chat will be disabled.
-
-### 3. Run
-
-```bash
-streamlit run app.py
-```
-
-The app will open at `http://localhost:8501`. Type any ticker (AAPL, TSLA, MSFT, etc.) and hit Enter.
-
-> **First run note:** FinBERT (~400MB) downloads from HuggingFace on first use. This takes ~30 seconds, then it's cached for all future runs.
-
----
-
-## Deploy to Streamlit Cloud (Free)
-
-1. Push to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repo, set `app.py` as the main file
-4. Add `GROQ_API_KEY` in the Secrets section
-5. Deploy — live URL in ~2 minutes
-
----
 
 ## Screenshots
 
-*[Add screenshots of the dashboard after running locally]*
-
+<img src="1.png" alt="Alt text" width="500px"/>
+<img src="2.png" alt="Alt text" width="500px"/>
+<img src="3.png" alt="Alt text" width="500px"/>
 ---
 
 ## Disclaimer
