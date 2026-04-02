@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import re
-
+from agent import run_agentic_analysis, build_vector_store, rag_chat
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # DEBUG SETTINGS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -428,8 +428,7 @@ Fundamentals: {json.dumps({k: v for k, v in fundamentals.items() if v is not Non
 Technicals: Price=${technicals.get('price', 'N/A'):.2f}, SMA50={technicals.get('sma50', 'N/A')}, SMA200={technicals.get('sma200', 'N/A')}, RSI={technicals.get('rsi', 'N/A'):.1f}
 Sentiment Score: {sentiment_score}/100
 Composite: {composite} → {recommendation}"""
-
-        response = client.chat.completions.create(
+            response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
@@ -1057,15 +1056,8 @@ def main():
         # AI Narrative (YOUR ORIGINAL)
         with st.spinner("Generating AI narrative..."):
             recommendation_summary = f"Owner Signal: {data['owner_rec']} | Buyer Signal: {data['buyer_rec']}"
-            narrative = generate_narrative(
-                ticker,
-                data["fundamentals"],
-                data["technicals"],
-                data["sentiment_score"],
-                data["composite_score"],
-                recommendation_summary,
-            )
-
+            narrative = run_agentic_analysis(ticker, os.environ.get("GROQ_API_KEY")) 
+            st.session_state.vector_store = build_vector_store(ticker, narrative, data["sentiment_results"])
         # Clean up narrative
         clean_narrative = narrative
         clean_narrative = clean_narrative.replace(chr(10)+chr(10), '<br><br>')
