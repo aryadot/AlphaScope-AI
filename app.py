@@ -1230,7 +1230,7 @@ def main():
                     st.write(prompt)
                 with st.chat_message("assistant"):
                     with st.spinner("Thinking..."):
-                        response = chat_with_groq(ticker, prompt, chat_context)
+                        response = rag_chat(prompt, ticker, st.session_state.vector_store,os.environ.get("GROQ_API_KEY"))
                     st.write(response)
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
