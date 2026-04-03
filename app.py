@@ -428,13 +428,14 @@ Fundamentals: {json.dumps({k: v for k, v in fundamentals.items() if v is not Non
 Technicals: Price=${technicals.get('price', 'N/A'):.2f}, SMA50={technicals.get('sma50', 'N/A')}, SMA200={technicals.get('sma200', 'N/A')}, RSI={technicals.get('rsi', 'N/A'):.1f}
 Sentiment Score: {sentiment_score}/100
 Composite: {composite} → {recommendation}"""
-            response = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
             temperature=0.7,
         )
         return response.choices[0].message.content
+        
 
     except Exception as e:
         st.warning(f"Groq API error: {e}")
