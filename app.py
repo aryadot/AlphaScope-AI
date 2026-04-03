@@ -558,12 +558,16 @@ def build_price_chart(chart_df, volume_df, ticker):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @st.cache_data(ttl=300, show_spinner=False)
 def run_analysis(ticker: str) -> dict:
-    stock = yf.Ticker(ticker)
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    })
+    stock = yf.Ticker(ticker, session=session)
     info = stock.info
     
     if not info or not info.get("regularMarketPrice"):
         return {"error": "Invalid ticker or no data available."}
-    
     # Fundamentals
     fundamentals = {
         "peRatio": info.get("trailingPE"),
