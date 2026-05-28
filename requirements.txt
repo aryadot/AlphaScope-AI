@@ -13,3 +13,8 @@ langchain-core
 chromadb
 sentence-transformers
 curl_cffi
+fastapi
+uvicorn
+httpx
+pytest
+pytest-cov
